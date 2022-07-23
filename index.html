@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Test</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css"
+      integrity="sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr/Fs0W40kiNHxM9vyTtQ=="
+      crossorigin=""
+    />
+    <script
+      src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js"
+      integrity="sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ=="
+      crossorigin=""
+    ></script>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script
+      src="https://code.jquery.com/jquery-3.6.0.min.js"
+      integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/js/bootstrap.min.js"
+      integrity="sha384-kjU+l4N0Yf4ZOJErLsIcvOU2qSb74wXpOhqTvwVx3OElZRweTnQ6d31fXEoRD1Jy"
+      crossorigin="anonymous"
+    ></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script type="text/javascript">
+      //Set Up the Map
+      const singapore = [1.347833, 103.809357];
+      let map = L.map("map").setView(singapore, 12);
+      const API_LINK = "https://api.data.gov.sg/v1/environment/psi";
+      // setup the tile layers
+      L.tileLayer(
+        "https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}",
+        {
+          attribution:
+            'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery (c) <a href="https://www.mapbox.com/">Mapbox</a>',
+          maxZoom: 18,
+          minZoom: 11,
+          id: "mapbox/streets-v11",
+          tileSize: 512,
+          zoomOffset: -1,
+          accessToken:
+            "pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw", //demo access token
+        }
+      ).addTo(map);
+
+      $.getJSON("https://api.data.gov.sg/v1/environment/psi", function (data) {
+        var region_metadata = data.region_metadata;
+        var psi_readings = data.items[0].readings.psi_twenty_four_hourly;
+
+        var latlongData = region_metadata.map(function (obj) {
+          return obj;
+        });
+
+        // console.log(psi_readings);
+        console.log(latlongData);
+
+        function getCircleMarkerColor(psi_value) {
+          if (psi_value >= 0 && psi_value <= 50) {
+            return "green";
+          } else if (psi_value >= 51 && psi_value <= 100) {
+            return "blue";
+          } else if (psi_value >= 101 && psi_value <= 200) {
+            return "yellow";
+          } else if (psi_value >= 201 && psi_value <= 300) {
+            return "orange";
+          } else {
+            return "red";
+          }
+        }
+
+        function circleWithText(latLng, txt, circleOptions) {
+          var icon = L.divIcon({
+            html: '<div class="txt">' + txt + "</div>",
+            className: "circle-with-txt",
+            iconSize: [40, 40],
+          });
+          var circle = L.circleMarker(latLng, circleOptions);
+          var marker = L.marker(latLng, {
+            icon: icon,
+          });
+          var group = L.layerGroup([circle, marker]);
+          return group;
+        }
+        // Create the Circle Markers and Append to the Map
+        for (var key in psi_readings) {
+          var region_name = key;
+          var region_psi_value = psi_readings[key];
+          var region_latitude = 0;
+          var region_longitude = 0;
+          latlongData.forEach((element) => {
+            if (element.name === region_name) {
+              region_latitude = element.label_location.latitude;
+              region_longitude = element.label_location.longitude;
+            }
+          });
+          circleWithText(
+            [region_latitude, region_longitude],
+            region_psi_value.toString(),
+            {
+              color: "black",
+              fillColor: getCircleMarkerColor(region_psi_value),
+              fillOpacity: 0.5,
+              radius: 35,
+            }
+          ).addTo(map);
+        }
+      });
+
+      function getColor(d) {
+        return d === "Hazardous"
+          ? "red"
+          : d === "Very Unhealthy"
+          ? "orange"
+          : d === "Unhealthy"
+          ? "yellow"
+          : d === "Moderate"
+          ? "blue"
+          : "green";
+      }
+      var legend = L.control({ position: "bottomright" });
+      legend.onAdd = function (map) {
+        var div = L.DomUtil.create("div", "info legend");
+        (labels = ["<strong>PSI Scale Reading</strong>"]),
+          (categories = [
+            "Hazardous",
+            "Very Unhealthy",
+            "Unhealthy",
+            "Moderate",
+            "Good",
+          ]);
+
+        for (var i = 0; i < categories.length; i++) {
+          div.innerHTML += labels.push(
+            '<i class="circle" style="background:' +
+              getColor(categories[i]) +
+              '"></i> ' +
+              (categories[i] ? categories[i] : "+")
+          );
+        }
+        div.innerHTML = labels.join("<br>");
+        return div;
+      };
+      legend.addTo(map);
+    </script>
+  </body>
+</html>
